@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bách Hóa Xanh - Tối Ưu Hóa Giao Hàng</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #map { height: 100vh; width: 100%; }
+        .sidebar { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 300px; 
+            height: 100%; 
+            background-color: white; 
+            z-index: 1000; 
+            padding: 20px; 
+            box-shadow: 2px 0 5px rgba(0,0,0,0.2); 
+        }
+        .header { 
+            background-color: #28a745; 
+            color: white; 
+            padding: 10px; 
+            text-align: center; 
+            font-size: 1.5rem; 
+            font-weight: bold; 
+        }
+        .dropdown { 
+            width: 100%; 
+            padding: 8px; 
+            margin: 5px 0; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+        }
+        .number-input { 
+            width: 100%; 
+            padding: 8px; 
+            margin: 5px 0; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+        }
+        .login-btn { 
+            position: absolute; 
+            top: 10px; 
+            right: 10px; 
+            background-color: #28a745; 
+            color: white; 
+            padding: 8px 16px; 
+            border-radius: 4px; 
+            text-decoration: none; 
+        }
+        .info-box { 
+            margin-top: 10px; 
+            padding: 10px; 
+            background-color: #f0f0f0; 
+            border-radius: 4px; 
+            display: none; 
+            max-height: 200px; 
+            overflow-y: auto; 
+        }
+    </style>
+</head>
+<body class="m-0 p-0">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="header">
+            BÁCH HÓA XANH
+        </div>
+        <!-- Route Calculation Section -->
+        <div class="mt-4">
+            <label class="block text-sm font-medium text-gray-700">Tính đường đi</label>
+            <select id="startLocation" class="dropdown">
+                <option value="">Chọn điểm bắt đầu</option>
+            </select>
+            <label class="block text-sm font-medium text-gray-700 mt-2">Số điểm đến</label>
+            <input type="number" id="numDestinations" class="number-input" min="1" max="10" placeholder="Nhập số điểm đến (1-10)">
+            <button id="generateDestinations" class="mt-2 w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Tạo danh sách điểm đến</button>
+            <div id="destinationsList" class="mt-2"></div>
+            <button id="calculateRoute" class="mt-2 w-full bg-green-500 text-white p-2 rounded hover:bg-green-600">Tính đường đi</button>
+            <div id="routeInfo" class="info-box"></div>
+        </div>
+    </div>
+
+    <!-- Login Button -->
+    <a href="#" class="login-btn">Đăng nhập</a>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map centered on Ho Chi Minh City
+        const map = L.map('map').setView([10.7769, 106.7009], 11);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Warehouse data
+        const warehouses = [
+            { name: "Kho Bách Hóa Xanh - Quận 7", lat: 10.738, lng: 106.7217, hours: "6:30 – 21:30", goods: "Rau củ, Thịt cá, FMCG" },
+            { name: "Kho Bách Hóa Xanh - Thủ Đức", lat: 10.87, lng: 106.7675, hours: "6:30 – 21:30", goods: "Rau củ, FMCG" },
+            { name: "Kho Bách Hóa Xanh - Bình Tân", lat: 10.7629, lng: 106.5938, hours: "6:30 – 21:30", goods: "Rau củ, FMCG, Đồ đông lạnh" },
+            { name: "Kho Bách Hóa Xanh - Gò Vấp", lat: 10.8389, lng: 106.6687, hours: "6:30 – 21:30", goods: "Rau củ, FMCG, Sữa" },
+            { name: "Kho Bách Hóa Xanh - Củ Chi", lat: 11.005, lng: 106.5, hours: "6:30 – 21:30", goods: "Rau củ, FMCG" },
+            { name: "Kho Bách Hóa Xanh - Nhà Bè", lat: 10.64, lng: 106.738, hours: "6:30 – 21:30", goods: "Rau củ, FMCG, Đồ hộp" },
+            { name: "Kho Bách Hóa Xanh - Hóc Môn", lat: 10.8916, lng: 106.6084, hours: "6:30 – 21:30", goods: "Rau củ, FMCG, Bánh kẹo" },
+            { name: "Kho Bách Hóa Xanh - Tân Bình", lat: 10.8017, lng: 106.652, hours: "6:30 – 21:30", goods: "Rau củ, FMCG" },
+            { name: "Kho Bách Hóa Xanh - Quận 8", lat: 10.724, lng: 106.6285, hours: "6:30 – 21:30", goods: "Rau củ, FMCG, Gia vị" },
+            { name: "Kho Bách Hóa Xanh - Quận 12", lat: 10.8556, lng: 106.6438, hours: "6:30 – 21:30", goods: "Rau củ, FMCG, Đồ uống" }
+        ];
+
+        // Add markers for each warehouse
+        const markers = [];
+        warehouses.forEach(warehouse => {
+            const marker = L.marker([warehouse.lat, warehouse.lng], {
+                icon: L.icon({
+                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41]
+                })
+            }).addTo(map);
+            marker.bindPopup(`
+                <b>${warehouse.name}</b><br>
+                Thời gian hoạt động: ${warehouse.hours}<br>
+                Các loại mặt hàng: ${warehouse.goods}<br>
+                Giao hàng: Tốt, 50 đơn hàng, Đảm bảo
+            `);
+            markers.push(marker);
+        });
+
+        // Populate start location dropdown
+        const startDropdown = document.getElementById('startLocation');
+        warehouses.forEach((warehouse, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = warehouse.name;
+            startDropdown.appendChild(option);
+        });
+
+        // Generate destination dropdowns dynamically
+        const numDestinationsInput = document.getElementById('numDestinations');
+        const destinationsList = document.getElementById('destinationsList');
+        document.getElementById('generateDestinations').addEventListener('click', () => {
+            const num = parseInt(numDestinationsInput.value);
+            if (isNaN(num) || num < 1 || num > 10) {
+                alert('Vui lòng nhập số điểm đến từ 1 đến 10!');
+                return;
+            }
+
+            // Clear previous dropdowns
+            destinationsList.innerHTML = '';
+
+            // Generate dropdowns
+            for (let i = 0; i < num; i++) {
+                const label = document.createElement('label');
+                label.className = 'block text-sm font-medium text-gray-700 mt-2';
+                label.textContent = `Điểm đến ${i + 1}`;
+                const select = document.createElement('select');
+                select.className = 'dropdown';
+                select.id = `destination-${i}`;
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Chọn điểm đến';
+                select.appendChild(defaultOption);
+                warehouses.forEach((warehouse, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = warehouse.name;
+                    select.appendChild(option);
+                });
+                destinationsList.appendChild(label);
+                destinationsList.appendChild(select);
+            }
+        });
+
+        // Route calculation
+        let routeLayers = [];
+        document.getElementById('calculateRoute').addEventListener('click', async () => {
+            const startIndex = startDropdown.value;
+            if (startIndex === '') {
+                alert('Vui lòng chọn điểm bắt đầu!');
+                return;
+            }
+
+            // Collect destinations
+            const destinationIndices = [];
+            const numDestinations = parseInt(numDestinationsInput.value);
+            if (isNaN(numDestinations) || numDestinations < 1) {
+                alert('Vui lòng tạo danh sách điểm đến trước!');
+                return;
+            }
+
+            for (let i = 0; i < numDestinations; i++) {
+                const select = document.getElementById(`destination-${i}`);
+                if (!select) {
+                    alert('Vui lòng tạo danh sách điểm đến trước!');
+                    return;
+                }
+                const index = select.value;
+                if (index === '') {
+                    alert(`Vui lòng chọn điểm đến ${i + 1}!`);
+                    return;
+                }
+                if (index == startIndex) {
+                    alert(`Điểm đến ${i + 1} trùng với điểm bắt đầu! Vui lòng chọn điểm khác.`);
+                    return;
+                }
+                if (destinationIndices.includes(index)) {
+                    alert(`Điểm đến ${i + 1} đã được chọn trước đó! Vui lòng chọn điểm khác.`);
+                    return;
+                }
+                destinationIndices.push(index);
+            }
+
+            if (destinationIndices.length === 0) {
+                alert('Không có điểm đến hợp lệ để tính đường đi!');
+                return;
+            }
+
+            // Clear previous routes
+            routeLayers.forEach(layer => map.removeLayer(layer));
+            routeLayers = [];
+
+            // API key and setup
+            const apiKey = '5b3ce3597851110001cf6248b00ac6acf0fc43ec93ea37239079ce59';
+            const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+            const routeInfo = document.getElementById('routeInfo');
+            routeInfo.innerHTML = '';
+            routeInfo.style.display = 'block';
+
+            // Colors for different route legs
+            const colors = ['#ff0000', '#00ff00', '#0000ff', '#ff00ff', '#00ffff'];
+            let bounds = L.latLngBounds();
+
+            try {
+                let currentLocation = warehouses[startIndex];
+                bounds.extend([currentLocation.lat, currentLocation.lng]);
+
+                for (let i = 0; i < destinationIndices.length; i++) {
+                    const destination = warehouses[destinationIndices[i]];
+                    const body = {
+                        coordinates: [
+                            [currentLocation.lng, currentLocation.lat],
+                            [destination.lng, destination.lat]
+                        ]
+                    };
+
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': apiKey,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(body)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Không thể lấy dữ liệu đường đi cho ${currentLocation.name} -> ${destination.name}`);
+                    }
+
+                    const data = await response.json();
+
+                    // Add route to map
+                    const color = colors[i % colors.length];
+                    const routeLayer = L.geoJSON(data, {
+                        style: { color: color, weight: 5 }
+                    }).addTo(map);
+                    routeLayers.push(routeLayer);
+
+                    // Extend bounds
+                    routeLayer.eachLayer(layer => {
+                        bounds.extend(layer.getBounds());
+                    });
+
+                    // Calculate distance and duration
+                    const distance = data.features[0].properties.segments[0].distance / 1000; // km
+                    const duration = data.features[0].properties.segments[0].duration / 60; // minutes
+
+                    // Add to info box
+                    const legInfo = document.createElement('div');
+                    legInfo.innerHTML = `
+                        <p><b>${currentLocation.name} → ${destination.name}</b></p>
+                        <p>📏 Quãng đường: ${distance.toFixed(2)} km</p>
+                        <p>⏱️ Thời gian dự kiến: ${duration.toFixed(1)} phút</p>
+                        <hr>
+                    `;
+                    routeInfo.appendChild(legInfo);
+
+                    // Update current location for the next leg
+                    currentLocation = destination;
+                }
+
+                // Zoom to fit all routes
+                map.fitBounds(bounds);
+            } catch (error) {
+                alert('Có lỗi xảy ra khi tính đường đi: ' + error.message);
+                routeInfo.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
